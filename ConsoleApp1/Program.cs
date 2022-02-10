@@ -2,11 +2,16 @@
 {
     static void Main()
     {
+        bool isAlive = true;
         string name = Environment.UserName;
         string machine = Environment.MachineName;
         string path = Environment.CurrentDirectory;
         UserInterface userInterface = new UserInterface(name, machine, path);
-        userInterface.Invite();
+        userInterface.Init();
+        while (isAlive)
+        {
+            userInterface.Invite();
+        }
     } 
 }
 
@@ -19,9 +24,6 @@ public class UserInterface
     private static string Currentpath { get; set; }
     
     private const int Command = 0;
-    private const int Text = 1;
-    private const int ToFile = 2;
-    private const int FileName = 3;
 
     public UserInterface(string username, string machine, string currentpath)
     {
@@ -29,175 +31,242 @@ public class UserInterface
         Machine = machine;
         Currentpath = currentpath;
     }
+    List<Command> commands = new List<Command>();
+    Envirement envirement = new Envirement();
+    public void Init()
+    {
+        commands.Add(new Cat(envirement));
+        commands.Add(new Echo(envirement));
+        commands.Add(new Mkdir(envirement));
+        commands.Add(new Pwd(envirement));
+        commands.Add(new Cd(envirement));
+        commands.Add(new Ls(envirement));
+        commands.Add(new Touch(envirement));
+    }
 
     public void Invite()
     {
-        if (Currentpath == Environment.CurrentDirectory)
+        string path = $"{Username} {Machine} {envirement.CurrentPath}";
+        string[] nameOfPath = path.Split(' ');
+        if (nameOfPath[2] == "" || envirement.CurrentPath == @"C:\Users\ilyay\RiderProjects\ConsoleApp1\ConsoleApp1\bin\Debug\net6.0")
         {
-            Console.WriteLine($"{Username}@{Machine} ~");
+            envirement.CurrentPath = @"C:\Users\ilyay\RiderProjects\ConsoleApp1\ConsoleApp1\bin\Debug\net6.0";
+            Console.WriteLine($"{Username}@{Machine}: ~");
             Console.Write("$");
         }
-        else
+        else 
         {
-            Console.WriteLine($"{Username}@{Machine}@{Currentpath}");
+            Console.WriteLine($"{Username}@{Machine}: {envirement.CurrentPath}");
             Console.Write("$");
         }
         string word = Console.ReadLine();
         string[] input = word.Split(' ');
-        if (input[Command] == "cd")
+        foreach (var e in commands)
         {
-            Cd.CdCommand(word);
+            if (e.GetName() == input[Command])
+            {
+                e.Execute(word);
+            }
         }
-        if (input[Command] == "pwd")
-        {
-            Console.WriteLine($"{Currentpath}");
-        }
-        if (input[Command] == "clear")
-        {
-            Console.Clear();
-        }
-        if (input[Command] == "ls")
-        {
-            Ls.LsCommand(word);
-        }
-        if (input[Command] == "mkdir")
-        {
-            Mkdir.MkdirCommand(word);
-        }
-        if (input[Command] == "touch")
-        {
-            Touch.TouchCommand(word);
-        }
-        if (input[Command] == "cat")
-        {
-            Cat.CatCommand(word);
-        }
-        if (input[Command] == "echo")
-        {
-            Echo.EchoCommand(word);
-            Invite();
-        }
+    }
+}
 
-        if (input[Command] == "exit")
+abstract class Command
+{
+    public Envirement envirement;
+
+    public Command(Envirement envirement)
+    {
+        this.envirement = envirement;
+    }
+    public abstract string Execute(string word);
+    public abstract string GetName();
+}
+
+class Echo : Command
+{
+    public Echo(Envirement envirement) : base(envirement) { }
+
+    public override string Execute(string word)
+    {
+        string[] input = word.Split(' ');
+        string fileName = input[input.Length - 1];
+        if (input[input.Length - 2] == ">")
         {
-            System.Diagnostics.Process.GetCurrentProcess().Kill();
+            File.WriteAllText($"{envirement.CurrentPath}\\{fileName}.txt",null);
+            for (int i = 1; i < input.Length-2; i++)
+            {
+                File.AppendAllText($"{envirement.CurrentPath}\\{fileName}.txt", $"{input[i]}");
+            }
+        }
+        else if (input[input.Length - 2] == ">>")
+        {
+            for (int i = 1; i < input.Length-2; i++)
+            {
+                File.AppendAllText($"{envirement.CurrentPath}\\{fileName}.txt", $"{input[i]}");
+            }
         }
         else
         {
-            Invite();
+            for (int i = 1; i < input.Length; i++)
+            {
+                Console.WriteLine(input[i]);
+            } 
         }
+        return null;
+    }
+
+    public override string GetName()
+    {
+        return "echo";
+    }
+}
+
+class Cat : Command
+{
+    public Cat(Envirement envirement) : base(envirement) { }
+
+    public override string Execute(string word)
+    {
+        string[] input = word.Split(' ');
+        if (File.Exists($"{envirement.CurrentPath}\\{input[1]}.txt"))
+        {
+            string[] file = File.ReadAllLines($"{envirement.CurrentPath}\\{input[1]}.txt");
+            for (int i = 0; i < file.Length; i++)
+            {
+                Console.WriteLine(file[i]);
+            }
+        }
+        else
+        {
+            Console.WriteLine("Файл не существует. Нажмите любую клавишу.");
+            Console.ReadKey();
+        }
+
+        return null;
+    }
+
+    public override string GetName()
+    {
+        return "cat";
+    }
+}
+
+class Touch : Command
+{
+    public Touch(Envirement envirement) : base(envirement) { }
+
+    public override string Execute(string word)
+    {
+        string[] input = word.Split(' ');
+        for (int i = 1; i < input.Length; i++)
+        {
+            File.Create($"{envirement.CurrentPath}\\{input[i]}.txt");
+        }
+
+        return null;
+    }
+
+    public override string GetName()
+    {
+        return "touch";
+    }
+}
+
+class Pwd : Command
+{
+    public Pwd(Envirement envirement) : base(envirement) { }
+
+    public override string Execute(string word)
+    {
+        Console.WriteLine($"{envirement.CurrentPath}");
+        return null;
+    }
+
+    public override string GetName()
+    {
+        return "pwd";
+    }
+}
+
+class Ls : Command
+{
+    public Ls(Envirement envirement) : base(envirement) { }
+    
+    public override string Execute(string word)
+    {
+        string[] input = word.Split(' ');
+        if (Directory.Exists(envirement.CurrentPath))
+        {
+            string[] ls = Directory.GetFileSystemEntries(envirement.CurrentPath);
+            for (int i = 0; i < ls.Length; i++)
+            {
+                Console.WriteLine(ls[i]);
+            }
+        }
+        else
+        {
+            Console.WriteLine("Директория не существует. Нажмите любую клавишу.");
+            Console.ReadKey();
+        }
+        
+        return null;
+    }
+
+    public override string GetName()
+    {
+        return "ls";
+    }
+}
+
+class Mkdir : Command 
+{
+    public Mkdir(Envirement envirement) : base(envirement){}
+    
+    public override string Execute(string word)
+    {
+        string[] input = word.Split(' ');
+        for (int i = 1; i < input.Length; i++)
+        {
+            Directory.CreateDirectory($"{envirement.CurrentPath}\\{input[i]}");
+        }
+
+        return null;
     }
     
-    static class Echo
+    public override string GetName()
     {
-        public static void EchoCommand(string word)
-        {
-            string[] input = word.Split(' ');
-            string fileName = input[input.Length - 1];
-            if (input[input.Length - 2] == ">>")
-            {
-                for (int i = 0; i < input.Length-1; i++)
-                {
-                    File.AppendAllText($"{Currentpath}\\{fileName}.txt", $"{input[i]}\n");
-                }
-            }
-            if (input[input.Length - 2] == ">")
-            {
-                for (int i = 0; i < input.Length-1; i++)
-                {
-                    File.WriteAllText($"{Currentpath}\\{fileName}.txt", $"{input[i]}\n");
-                }
-            }
-            else
-            {
-                for (int i = 1; i < input.Length; i++)
-                {
-                    Console.WriteLine(input[i]);
-                }
-            }
-        }
+        return "mkdir";
     }
+}
 
-    static class Cat
+class Cd : Command
+{
+    public Cd(Envirement envirement) : base(envirement) { }
+    
+    public override string Execute(string word)
     {
-        public static void CatCommand(string word)
+        string[] input = word.Split(' ');
+        if (Directory.Exists(input[1]))
         {
-            string[] input = word.Split(' ');
-            if (File.Exists($"{Currentpath}\\{input[1]}.txt"))
-            {
-                string[] file = File.ReadAllLines($"{Currentpath}\\{input[1]}.txt");
-                for (int i = 0; i < file.Length; i++)
-                {
-                    Console.WriteLine(file[i]);
-                }
-            }
-            else
-            {
-                Console.WriteLine("Файл не существует. Нажмите любую клавишу.");
-                Console.ReadKey();
-            }
+           envirement.CurrentPath = input[1];
         }
-    }
+        else
+        {
+            Console.WriteLine("Путь не существует. Нажмите любую клавишу.");
+            Console.ReadKey();
+        }
 
-    static class Touch
-    {
-        public static void TouchCommand(string word)
-        {
-            string[] input = word.Split(' ');
-            for (int i = 1; i < input.Length; i++)
-            {
-                File.Create($"{Currentpath}\\{input[i]}.txt");
-            }
-        }
+        return null;
     }
+    
+    public override string GetName()
+    {
+        return "cd";
+    }
+}
 
-    static class Mkdir
-    {
-        public static void MkdirCommand(string word)
-        {
-            string[] input = word.Split(' ');
-            for (int i = 1; i < input.Length; i++)
-            {
-                Directory.CreateDirectory(input[i]);
-            }
-        }
-    }
-
-    static class Ls
-    {
-        public static void LsCommand(string word)
-        {
-            string[] input = word.Split(' ');
-            if (Directory.Exists(Currentpath))
-            {
-                string[] ls = Directory.GetFileSystemEntries(Currentpath);
-                for (int i = 0; i < ls.Length; i++)
-                {
-                    Console.WriteLine(ls[i]);
-                }
-            }
-            else
-            {
-                Console.WriteLine("Директория не существует. Нажмите любую клавишу.");
-                Console.ReadKey();
-            }
-        }
-    }
-
-    static class Cd
-    {
-        public static void CdCommand(string word)
-        {
-            string[] input = word.Split(' ');
-            if (Directory.Exists(input[Text]))
-            {
-                Currentpath = input[Text];
-            }
-            else
-            {
-                Console.WriteLine("Путь не существует. Нажмите любую клавишу.");
-                Console.ReadKey();
-            }
-        }
-    }
+class Envirement
+{
+    public string CurrentPath { get; set; }
 }
